@@ -1,12 +1,12 @@
 package domain
 
 type Listing struct {
-	ID       int     `json:"id"`
-	Title    string  `json:"title"`
-	City     string  `json:"city"`
-	Price    float64 `json:"price"`
-	Status   string  `json:"status"`
-	Category string  `json:"category"`
+	ID          int    `json:"id"`
+	UserID      int    `json:"user_id"`
+	Price       int64  `json:"price"`
+	ListingType string `json:"listing_type"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
 }
 
 type User struct {

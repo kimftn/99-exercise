@@ -15,21 +15,25 @@ func NewServer() *fiber.App {
 
 func NewServerWithPool(pool *pgxpool.Pool) *fiber.App {
 	if pool == nil {
-		panic("postgres pool is required for user APIs")
+		panic("postgres pool is required for user and listing APIs")
 	}
 
-	return newServerWithDependencies(repository.NewPostgresUserRepository(pool))
+	return newServerWithDependencies(
+		repository.NewPostgresUserRepository(pool),
+		repository.NewPostgresListingRepository(pool),
+	)
 }
 
-func newServerWithDependencies(userRepository repository.UserRepository) *fiber.App {
-	if userRepository == nil {
-		panic("user repository is required")
+func newServerWithDependencies(
+	userRepository repository.UserRepository,
+	listingRepository repository.ListingRepository,
+) *fiber.App {
+	if userRepository == nil || listingRepository == nil {
+		panic("user and listing repositories are required")
 	}
 
 	app := fiber.New()
-
-	listingRepository := repository.NewInMemoryListingRepository()
-	listingService := service.NewListingService(listingRepository)
+	listingService := service.NewListingService(listingRepository, userRepository)
 	userService := service.NewUserService(userRepository)
 	publicService := service.NewPublicService(listingService, userService)
 

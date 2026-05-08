@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 
 	"property-api/internal/dto"
+	httphelpers "property-api/internal/http/helpers"
 	"property-api/internal/service"
 )
 
@@ -23,17 +26,67 @@ func (h *ListingHandler) CreateListing(c *fiber.Ctx) error {
 		})
 	}
 
-	listing := h.service.CreateListing(*payload)
+	if payload.UserID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "invalid user_id",
+		})
+	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "listing created",
-		"data":    listing,
+	listing, err := h.service.CreateListing(*payload)
+	if err != nil {
+		if err == service.ErrInvalidListingType || err == service.ErrListingUserNotFound {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.ListingErrorResponse{
+				Return:   false,
+				Listings: nil,
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to create listing",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.CreateListingResponse{
+		Result:  true,
+		Listing: &listing,
 	})
 }
 
 func (h *ListingHandler) GetListings(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
-		"message": "listings fetched",
-		"data":    h.service.GetListings(),
+	pageNum, err := httphelpers.ParsePositiveQueryInt(c.Query("page_num"), 1)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "invalid page_num",
+		})
+	}
+
+	pageSize, err := httphelpers.ParsePositiveQueryInt(c.Query("page_size"), 10)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "invalid page_size",
+		})
+	}
+
+	var userID *int
+	if c.Query("user_id") != "" {
+		parsedUserID, err := strconv.Atoi(c.Query("user_id"))
+		if err != nil || parsedUserID <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"message": "invalid user_id",
+			})
+		}
+		userID = &parsedUserID
+	}
+
+	listings, err := h.service.GetListings(pageNum, pageSize, userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to fetch listings",
+		})
+	}
+
+	return c.JSON(dto.GetListingsResponse{
+		Result:   true,
+		Listings: listings,
 	})
 }
