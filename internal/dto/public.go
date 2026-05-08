@@ -1,11 +1,9 @@
 package dto
 
 type PublicCreateListingRequest struct {
-	Title    string  `json:"title"`
-	City     string  `json:"city"`
-	Price    float64 `json:"price"`
-	Status   string  `json:"status"`
-	Category string  `json:"category"`
+	UserID      int    `json:"user_id" form:"user_id"`
+	ListingType string `json:"listing_type" form:"listing_type"`
+	Price       int64  `json:"price" form:"price"`
 }
 
 type PublicCreateUserRequest struct {

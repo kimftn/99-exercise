@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"property-api/internal/client"
 	"property-api/internal/http/handlers"
 	"property-api/internal/repository"
 	"property-api/internal/service"
@@ -13,7 +14,7 @@ func NewServer() *fiber.App {
 	panic("user repository is required; use NewServerWithPool")
 }
 
-func NewServerWithPool(pool *pgxpool.Pool) *fiber.App {
+func NewServerWithPool(pool *pgxpool.Pool, listingServiceBaseURL string) *fiber.App {
 	if pool == nil {
 		panic("postgres pool is required for user and listing APIs")
 	}
@@ -21,21 +22,23 @@ func NewServerWithPool(pool *pgxpool.Pool) *fiber.App {
 	return newServerWithDependencies(
 		repository.NewPostgresUserRepository(pool),
 		repository.NewPostgresListingRepository(pool),
+		client.NewHTTPListingClient(listingServiceBaseURL),
 	)
 }
 
 func newServerWithDependencies(
 	userRepository repository.UserRepository,
 	listingRepository repository.ListingRepository,
+	publicListingClient client.ListingClient,
 ) *fiber.App {
-	if userRepository == nil || listingRepository == nil {
-		panic("user and listing repositories are required")
+	if userRepository == nil || listingRepository == nil || publicListingClient == nil {
+		panic("user repository, listing repository, and public listing client are required")
 	}
 
 	app := fiber.New()
 	listingService := service.NewListingService(listingRepository, userRepository)
 	userService := service.NewUserService(userRepository)
-	publicService := service.NewPublicService(listingService, userService)
+	publicService := service.NewPublicService(publicListingClient, userService)
 
 	listingHandler := handlers.NewListingHandler(listingService)
 	userHandler := handlers.NewUserHandler(userService)

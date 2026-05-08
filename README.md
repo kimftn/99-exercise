@@ -10,7 +10,11 @@ Simple Go + Fiber starter for three service areas:
 
 This project uses a layered structure:
 
-`handler -> service -> repository -> store`
+`handler -> service -> repository`
+
+For the public listing APIs, the flow is:
+
+`handler -> service -> http client -> external listing service`
 
 DTOs are used between the HTTP layer and service layer to keep request and response contracts separate from the domain model.
 
@@ -21,7 +25,9 @@ DTOs are used between the HTTP layer and service layer to keep request and respo
 - `service`
   Contains business flow and coordinates between handlers, repositories, and DTO mapping.
 - `repository`
-  Handles data access. In this boilerplate it uses an in-memory store, but it can later be replaced with a database implementation.
+  Handles data access for local services.
+- `client`
+  Handles outbound HTTP calls to external services.
 - `dto`
   Defines request and response payloads for each service.
 
@@ -32,6 +38,7 @@ cmd/api/main.go
 cmd/migrate/main.go
 db/migrations/
 internal/app/router.go
+internal/client/
 internal/domain/
 internal/dto/
 internal/http/handlers/
@@ -42,13 +49,20 @@ internal/service/
 
 ### Request Flow Example
 
-For `POST /listings`:
+For local `POST /listings`:
 
 1. `ListingHandler` parses the incoming JSON into `dto.CreateListingRequest`.
 2. `ListingService` applies business rules and maps the DTO into a domain model.
-3. `ListingRepository` saves the data into the in-memory `store`.
+3. `ListingRepository` saves the data into PostgreSQL.
 4. `ListingService` maps the saved model into `dto.ListingResponse`.
 5. `ListingHandler` returns the JSON response to the client.
+
+For `GET /public-api/listings`:
+
+1. `PublicHandler` parses query params.
+2. `PublicService` delegates to a listing HTTP client.
+3. `ListingClient` calls the external Listing Service, for example `http://localhost:6000/listings`.
+4. `PublicHandler` returns the external listing data in the public API response.
 
 The same pattern is used for:
 
@@ -85,6 +99,7 @@ Supported environment variables:
 - `PGPASSWORD`
 - `PGDATABASE`
 - `PGSSLMODE`
+- `LISTING_SERVICE_BASE_URL`
 
 Example:
 
@@ -97,6 +112,7 @@ PGUSER=postgres
 PGPASSWORD=postgres
 PGDATABASE=property_api
 PGSSLMODE=disable
+LISTING_SERVICE_BASE_URL=http://localhost:6000
 ```
 
 Then run:
@@ -105,8 +121,7 @@ Then run:
 go run ./cmd/api
 ```
 
-If PostgreSQL environment variables are present, the app will open and ping a connection pool at startup.
-The current repositories still use the in-memory store, so this connection package is ready for the next step when you want to move repositories to PostgreSQL.
+The app opens a PostgreSQL connection pool at startup and also uses `LISTING_SERVICE_BASE_URL` for the public listing APIs.
 
 ## Migrations
 

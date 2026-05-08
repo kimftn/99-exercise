@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -32,7 +33,12 @@ func main() {
 
 	log.Println("postgres connection established")
 
-	server := app.NewServerWithPool(pool)
+	listingServiceBaseURL := os.Getenv("LISTING_SERVICE_BASE_URL")
+	if listingServiceBaseURL == "" {
+		listingServiceBaseURL = "http://localhost:6000"
+	}
+
+	server := app.NewServerWithPool(pool, listingServiceBaseURL)
 
 	log.Println("starting server on :3000")
 	if err := server.Listen(":3000"); err != nil {

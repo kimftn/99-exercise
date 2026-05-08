@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"property-api/internal/client"
 	"property-api/internal/domain"
+	"property-api/internal/dto"
 	"property-api/internal/repository"
 )
 
@@ -15,6 +17,10 @@ type stubUserRepository struct {
 }
 
 type stubListingRepository struct {
+	listings []domain.Listing
+}
+
+type stubPublicListingClient struct {
 	listings []domain.Listing
 }
 
@@ -29,6 +35,15 @@ func newStubUserRepository() repository.UserRepository {
 
 func newStubListingRepository() repository.ListingRepository {
 	return &stubListingRepository{
+		listings: []domain.Listing{
+			{ID: 1, UserID: 1, Price: 1250000000, ListingType: "sale", CreatedAt: 1715000000, UpdatedAt: 1715000000},
+			{ID: 2, UserID: 2, Price: 4500000, ListingType: "rent", CreatedAt: 1715003600, UpdatedAt: 1715003600},
+		},
+	}
+}
+
+func newStubPublicListingClient() client.ListingClient {
+	return &stubPublicListingClient{
 		listings: []domain.Listing{
 			{ID: 1, UserID: 1, Price: 1250000000, ListingType: "sale", CreatedAt: 1715000000, UpdatedAt: 1715000000},
 			{ID: 2, UserID: 2, Price: 4500000, ListingType: "rent", CreatedAt: 1715003600, UpdatedAt: 1715003600},
@@ -94,8 +109,73 @@ func (r *stubListingRepository) GetAll(pageNum int, pageSize int, userID *int) (
 	return filtered[offset:end], nil
 }
 
+func (c *stubPublicListingClient) GetListings(pageNum int, pageSize int, userID *int) ([]dto.ListingResponse, error) {
+	filtered := make([]dto.ListingResponse, 0)
+	for _, listing := range c.listings {
+		if userID != nil && listing.UserID != *userID {
+			continue
+		}
+		filtered = append(filtered, dto.ListingResponse{
+			ID:          listing.ID,
+			UserID:      listing.UserID,
+			Price:       listing.Price,
+			ListingType: listing.ListingType,
+			CreatedAt:   listing.CreatedAt,
+			UpdatedAt:   listing.UpdatedAt,
+		})
+	}
+
+	offset := (pageNum - 1) * pageSize
+	if offset >= len(filtered) {
+		return []dto.ListingResponse{}, nil
+	}
+
+	end := offset + pageSize
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+
+	return filtered[offset:end], nil
+}
+
+func (c *stubPublicListingClient) CreateListing(request dto.PublicCreateListingRequest) (dto.ListingResponse, error) {
+	if request.ListingType != "rent" && request.ListingType != "sale" {
+		return dto.ListingResponse{}, client.ErrListingRequestRejected
+	}
+
+	userFound := false
+	for _, listing := range c.listings {
+		if listing.UserID == request.UserID {
+			userFound = true
+			break
+		}
+	}
+	if !userFound {
+		return dto.ListingResponse{}, client.ErrListingRequestRejected
+	}
+
+	response := dto.ListingResponse{
+		ID:          len(c.listings) + 1,
+		UserID:      request.UserID,
+		Price:       request.Price,
+		ListingType: request.ListingType,
+		CreatedAt:   1715007200,
+		UpdatedAt:   1715007200,
+	}
+	c.listings = append(c.listings, domain.Listing{
+		ID:          response.ID,
+		UserID:      response.UserID,
+		Price:       response.Price,
+		ListingType: response.ListingType,
+		CreatedAt:   response.CreatedAt,
+		UpdatedAt:   response.UpdatedAt,
+	})
+
+	return response, nil
+}
+
 func TestHealthEndpoint(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	resp, err := server.Test(req)
@@ -109,7 +189,7 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestGetListingsEndpoint(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/listings", nil)
 	resp, err := server.Test(req)
@@ -123,7 +203,7 @@ func TestGetListingsEndpoint(t *testing.T) {
 }
 
 func TestCreatePublicUserEndpoint(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	body := `{"name":"Dina Saputra"}`
 	req := httptest.NewRequest("POST", "/public-api/users", strings.NewReader(body))
@@ -162,7 +242,7 @@ func TestCreatePublicUserEndpoint(t *testing.T) {
 }
 
 func TestCreateUserEndpointResponseShape(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	body := `{"name":"Nadia Putri"}`
 	req := httptest.NewRequest("POST", "/users", strings.NewReader(body))
@@ -201,7 +281,7 @@ func TestCreateUserEndpointResponseShape(t *testing.T) {
 }
 
 func TestGetUsersEndpointResponseShape(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/users", nil)
 	resp, err := server.Test(req)
@@ -237,7 +317,7 @@ func TestGetUsersEndpointResponseShape(t *testing.T) {
 }
 
 func TestGetUsersEndpointPagination(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/users?page_num=2&page_size=1", nil)
 	resp, err := server.Test(req)
@@ -271,7 +351,7 @@ func TestGetUsersEndpointPagination(t *testing.T) {
 }
 
 func TestGetUserByIDEndpointResponseShape(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/users/1", nil)
 	resp, err := server.Test(req)
@@ -307,7 +387,7 @@ func TestGetUserByIDEndpointResponseShape(t *testing.T) {
 }
 
 func TestGetUserByIDEndpointNotFoundReturns200(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/users/999", nil)
 	resp, err := server.Test(req)
@@ -338,7 +418,7 @@ func TestGetUserByIDEndpointNotFoundReturns200(t *testing.T) {
 }
 
 func TestGetListingsEndpointPaginationAndFilter(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	req := httptest.NewRequest("GET", "/listings?page_num=1&page_size=1&user_id=2", nil)
 	resp, err := server.Test(req)
@@ -378,7 +458,7 @@ func TestGetListingsEndpointPaginationAndFilter(t *testing.T) {
 }
 
 func TestCreateListingEndpointFormResponse(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	body := "user_id=1&listing_type=rent&price=7000000"
 	req := httptest.NewRequest("POST", "/listings", strings.NewReader(body))
@@ -421,7 +501,7 @@ func TestCreateListingEndpointFormResponse(t *testing.T) {
 }
 
 func TestCreateListingEndpointInvalidListingTypeReturns422(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	body := "user_id=1&listing_type=lease&price=7000000"
 	req := httptest.NewRequest("POST", "/listings", strings.NewReader(body))
@@ -455,7 +535,7 @@ func TestCreateListingEndpointInvalidListingTypeReturns422(t *testing.T) {
 }
 
 func TestCreateListingEndpointUserNotFoundReturns422(t *testing.T) {
-	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository())
+	server := newServerWithDependencies(newStubUserRepository(), newStubListingRepository(), newStubPublicListingClient())
 
 	body := "user_id=999&listing_type=rent&price=7000000"
 	req := httptest.NewRequest("POST", "/listings", strings.NewReader(body))

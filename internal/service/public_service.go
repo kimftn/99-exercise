@@ -1,31 +1,40 @@
 package service
 
-import "property-api/internal/dto"
+import (
+	"errors"
+
+	"property-api/internal/client"
+	"property-api/internal/dto"
+)
+
+var ErrPublicListingRejected = errors.New("public listing rejected")
 
 type PublicService struct {
-	listingService *ListingService
-	userService    *UserService
+	listingClient client.ListingClient
+	userService   *UserService
 }
 
-func NewPublicService(listingService *ListingService, userService *UserService) *PublicService {
+func NewPublicService(listingClient client.ListingClient, userService *UserService) *PublicService {
 	return &PublicService{
-		listingService: listingService,
-		userService:    userService,
+		listingClient: listingClient,
+		userService:   userService,
 	}
 }
 
-func (s *PublicService) GetListings() []dto.ListingResponse {
-	return s.listingService.GetListings()
+func (s *PublicService) GetListings(pageNum int, pageSize int, userID *int) ([]dto.ListingResponse, error) {
+	return s.listingClient.GetListings(pageNum, pageSize, userID)
 }
 
-func (s *PublicService) CreateListing(request dto.PublicCreateListingRequest) dto.ListingResponse {
-	return s.listingService.CreateListing(dto.CreateListingRequest{
-		Title:    request.Title,
-		City:     request.City,
-		Price:    request.Price,
-		Status:   request.Status,
-		Category: request.Category,
-	})
+func (s *PublicService) CreateListing(request dto.PublicCreateListingRequest) (dto.ListingResponse, error) {
+	listing, err := s.listingClient.CreateListing(request)
+	if err != nil {
+		if err == client.ErrListingRequestRejected {
+			return dto.ListingResponse{}, ErrPublicListingRejected
+		}
+		return dto.ListingResponse{}, err
+	}
+
+	return listing, nil
 }
 
 func (s *PublicService) CreateUser(request dto.PublicCreateUserRequest) (dto.UserResponse, error) {
