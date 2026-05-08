@@ -45,9 +45,15 @@ func (h *PublicHandler) CreateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	user := h.service.CreateUser(*payload)
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "user created",
-		"data":    user,
+	user, err := h.service.CreateUser(*payload)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to create user",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.CreateUserResponse{
+		Result: true,
+		User:   &user,
 	})
 }

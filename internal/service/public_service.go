@@ -28,10 +28,8 @@ func (s *PublicService) CreateListing(request dto.PublicCreateListingRequest) dt
 	})
 }
 
-func (s *PublicService) CreateUser(request dto.PublicCreateUserRequest) dto.UserResponse {
+func (s *PublicService) CreateUser(request dto.PublicCreateUserRequest) (dto.UserResponse, error) {
 	return s.userService.CreateUser(dto.CreateUserRequest{
-		Name:  request.Name,
-		Email: request.Email,
-		Role:  request.Role,
+		Name: request.Name,
 	})
 }

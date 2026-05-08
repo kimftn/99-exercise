@@ -2,20 +2,33 @@ package app
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"property-api/internal/http/handlers"
 	"property-api/internal/repository"
 	"property-api/internal/service"
-	"property-api/internal/store"
 )
 
 func NewServer() *fiber.App {
+	panic("user repository is required; use NewServerWithPool")
+}
+
+func NewServerWithPool(pool *pgxpool.Pool) *fiber.App {
+	if pool == nil {
+		panic("postgres pool is required for user APIs")
+	}
+
+	return newServerWithDependencies(repository.NewPostgresUserRepository(pool))
+}
+
+func newServerWithDependencies(userRepository repository.UserRepository) *fiber.App {
+	if userRepository == nil {
+		panic("user repository is required")
+	}
+
 	app := fiber.New()
-	dataStore := store.New()
 
-	listingRepository := repository.NewInMemoryListingRepository(dataStore)
-	userRepository := repository.NewInMemoryUserRepository(dataStore)
-
+	listingRepository := repository.NewInMemoryListingRepository()
 	listingService := service.NewListingService(listingRepository)
 	userService := service.NewUserService(userRepository)
 	publicService := service.NewPublicService(listingService, userService)
